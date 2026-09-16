@@ -1,15 +1,17 @@
 import streamlit as st
 import requests
 from PIL import Image
+from pyzbar.pyzbar import decode
+
+# --- Configuration de la page ---
+st.set_page_config(page_title="CanScan App", page_icon="🇨🇦", layout="centered")
 
 # --- Initialisation de la base locale en mémoire ---
 if "db_locale" not in st.session_state:
     st.session_state.db_locale = {
-        "0060383664145": {"product_name": "Jus d'orange local", "brands": "Sans Nom"}
+        "0060383664145": {"product_name": "Jus d'orange local", "brands": "Sans Nom"},
+        "060383664145": {"product_name": "Jus d'orange local", "brands": "Sans Nom"}
     }
-
-# --- Configuration de la page ---
-st.set_page_config(page_title="CanScan App", page_icon="🇨🇦", layout="centered")
 
 # --- 1. Gestion des Langues ---
 langue = st.sidebar.selectbox("🌐 Changer de langue / Language", ["Français", "English"])
@@ -33,7 +35,8 @@ txt = {
         "form_submit": "Enregistrer le produit",
         "form_success": "Le produit '{name}' a été enregistré !",
         "form_error": "Le nom du produit est obligatoire.",
-        "barcode_detected": "📋 Code-barres extrait de l'image :"
+        "barcode_detected": "📋 Code-barres extrait de l'image :",
+        "no_barcode": "❌ Aucun code-barres n'a pu être lu sur la photo. Assurez-vous qu'il soit bien droit, net et bien éclairé."
     },
     "English": {
         "titre_app": "🇨🇦 CanScan — Product Manager",
@@ -53,7 +56,8 @@ txt = {
         "form_submit": "Save Product",
         "form_success": "Product '{name}' has been saved!",
         "form_error": "Product name is required.",
-        "barcode_detected": "📋 Barcode extracted from image:"
+        "barcode_detected": "📋 Barcode extracted from image:",
+        "no_barcode": "❌ No barcode could be read from the photo. Make sure it is straight, sharp, and well-lit."
     }
 }[langue]
 
@@ -84,21 +88,29 @@ st.divider()
 
 st.markdown(f"### {txt['scan_title']}")
 
-# Ce bouton utilise l'appareil photo natif du téléphone de façon 100% compatible
+# Prise de photo
 img_file = st.camera_input("Prendre une photo")
 
 barcode_detected = ""
 
 if img_file is not None:
-    # Optionnel: l'analyse se fait ici en Python si des librairies comme pyzbar/opencv sont prêtes
-    st.info("Photo reçue avec succès sur le serveur !")
+    # Analyse de la photo pour trouver le code-barres
+    img = Image.open(img_file)
+    decoded_objects = decode(img)
+    
+    if decoded_objects:
+        # Code trouvé avec succès !
+        barcode_detected = decoded_objects.data.decode("utf-8").strip()
+        st.success(f"{txt['barcode_detected']} {barcode_detected}")
+    else:
+        st.error(txt["no_barcode"])
 
 # Section Recherche Manuelle
 st.markdown(txt["search_manual"])
 manual_input = st.text_input(label=txt["input_label"], placeholder=txt["input_placeholder"])
 
-# Priorité à la saisie manuelle si le scan n'a pas extrait de texte
-code_to_search = manual_input if manual_input else barcode_detected
+# Priorité au code scanné, sinon saisie manuelle
+code_to_search = barcode_detected if barcode_detected else manual_input
 
 # --- 4. Traitement et Recherche ---
 if code_to_search:
